@@ -11,9 +11,9 @@ import { localSymbolAtNode, symbolAtNode } from "./Utils/symbolAtNode";
 
 export class SchemaGenerator {
     public constructor(
-        private readonly program: ts.Program,
-        private readonly nodeParser: NodeParser,
-        private readonly typeFormatter: TypeFormatter
+        public readonly program: ts.Program,
+        public readonly nodeParser: NodeParser,
+        public readonly typeFormatter: TypeFormatter
     ) {}
 
     public createSchema(fullName: string | undefined): Schema {
@@ -28,7 +28,15 @@ export class SchemaGenerator {
         return { $schema: "http://json-schema.org/draft-07/schema#", ...rootTypeDefinition, definitions };
     }
 
-    private getRootNodes(fullName: string | undefined) {
+    public createSchemaFromNode(node: ts.Node): Schema {
+        const rootType = this.nodeParser.createType(node, new Context());
+        const rootTypeDefinition = this.getRootTypeDefinition(rootType);
+        const definitions: StringMap<Definition> = {};
+        this.appendRootChildDefinitions(rootType, definitions);
+        return { $schema: "http://json-schema.org/draft-07/schema#", ...rootTypeDefinition, definitions };
+    }
+
+    public getRootNodes(fullName: string | undefined) {
         if (fullName && fullName !== "*") {
             return [this.findNamedNode(fullName)];
         } else {
@@ -41,7 +49,7 @@ export class SchemaGenerator {
             return [...rootNodes.values()];
         }
     }
-    private findNamedNode(fullName: string): ts.Node {
+    public findNamedNode(fullName: string): ts.Node {
         const typeChecker = this.program.getTypeChecker();
         const allTypes = new Map<string, ts.Node>();
         const { projectFiles, externalFiles } = this.partitionFiles();
@@ -60,10 +68,10 @@ export class SchemaGenerator {
 
         throw new NoRootTypeError(fullName);
     }
-    private getRootTypeDefinition(rootType: BaseType): Definition {
+    public getRootTypeDefinition(rootType: BaseType): Definition {
         return this.typeFormatter.getDefinition(rootType);
     }
-    private appendRootChildDefinitions(rootType: BaseType, childDefinitions: StringMap<Definition>): void {
+    public appendRootChildDefinitions(rootType: BaseType, childDefinitions: StringMap<Definition>): void {
         const seen = new Set<string>();
 
         const children = this.typeFormatter
@@ -95,7 +103,7 @@ export class SchemaGenerator {
             return definitions;
         }, childDefinitions);
     }
-    private partitionFiles() {
+    public partitionFiles() {
         const projectFiles = new Array<ts.SourceFile>();
         const externalFiles = new Array<ts.SourceFile>();
 
@@ -106,7 +114,7 @@ export class SchemaGenerator {
 
         return { projectFiles, externalFiles };
     }
-    private appendTypes(
+    public appendTypes(
         sourceFiles: readonly ts.SourceFile[],
         typeChecker: ts.TypeChecker,
         types: Map<string, ts.Node>
@@ -115,7 +123,7 @@ export class SchemaGenerator {
             this.inspectNode(sourceFile, typeChecker, types);
         }
     }
-    private inspectNode(node: ts.Node, typeChecker: ts.TypeChecker, allTypes: Map<string, ts.Node>): void {
+    public inspectNode(node: ts.Node, typeChecker: ts.TypeChecker, allTypes: Map<string, ts.Node>): void {
         switch (node.kind) {
             case ts.SyntaxKind.InterfaceDeclaration:
             case ts.SyntaxKind.ClassDeclaration:
@@ -132,14 +140,14 @@ export class SchemaGenerator {
                 break;
         }
     }
-    private isExportType(node: ts.Node): boolean {
+    public isExportType(node: ts.Node): boolean {
         const localSymbol = localSymbolAtNode(node);
         return localSymbol ? "exportSymbol" in localSymbol : false;
     }
-    private isGenericType(node: ts.TypeAliasDeclaration): boolean {
+    public isGenericType(node: ts.TypeAliasDeclaration): boolean {
         return !!(node.typeParameters && node.typeParameters.length > 0);
     }
-    private getFullName(node: ts.Node, typeChecker: ts.TypeChecker): string {
+    public getFullName(node: ts.Node, typeChecker: ts.TypeChecker): string {
         const symbol = symbolAtNode(node)!;
         return typeChecker.getFullyQualifiedName(symbol).replace(/".*"\./, "");
     }
